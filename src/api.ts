@@ -1,3 +1,4 @@
+export interface MiniConfig { durationSeconds?: number; mode: "instant" | "multiplier"; baseAmount?: number; targetRange?: { min: number; max: number }; prizes: { mode?: 'instant' | 'multiplier'; amount: number; label?: string }[] }
 export interface Player {
   _id: string;
   displayName: string;
@@ -25,6 +26,7 @@ export interface Campaign {
   status: "draft" | "active" | "paused" | "archived";
   rewardType: RewardType;
   rewardValue: number;
+  gameConfig?: MiniConfig;
   audience: Audience;
 }
 export interface Award {
@@ -33,6 +35,8 @@ export interface Award {
   campaignId: string | null;
   type: RewardType;
   value: number;
+  gameConfig?: MiniConfig;
+  outcome?: { payout: number; amount: number; prizeIndex: number };
   status: string;
   createdAt: string;
 }
@@ -60,6 +64,8 @@ export interface Analytics {
     pending: number;
     credited: number;
     revoked: number;
+    played: number;
+    miniGamePayout: number;
     creditValue: number;
   };
   retention: {

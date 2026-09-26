@@ -1,3 +1,4 @@
+import type { MiniConfig } from "./api";
 import React, {
   useEffect,
   useState,
@@ -108,37 +109,30 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
     </label>
   );
 }
-function RewardFields({
-  type = "credits",
-  value = 10,
-}: {
-  type?: string;
-  value?: number;
-}) {
-  return (
-    <div className="form-row">
-      <Field label="Reward experience">
-        <select name="type" defaultValue={type}>
-          {Object.entries(rewardNames).map(([value, title]) => (
-            <option key={value} value={value}>
-              {title}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label="Credits / configured prize value">
-        <input
-          name="value"
-          type="number"
-          min="1"
-          max="1000000"
-          step="1"
-          defaultValue={value}
-          required
-        />
-      </Field>
-    </div>
-  );
+function gameConfigFrom(d: FormData): MiniConfig | undefined {
+  if (!['wheel', 'chests', 'targets', 'scratch'].includes(String(d.get('type')))) return undefined;
+  const count = Number(d.get('prizeCount'));
+  const values = d.get('type') === 'targets' ? Array.from({length: Math.max(0,Math.min(12,count))},()=>0) : String(d.get('prizes') || '').split(',').map((s) => s.trim() === '' ? NaN : Number(s));
+  if (values.length !== count || values.some((n) => !Number.isInteger(n) || n < 0)) throw new Error('Provide one whole-number prize amount for every sector/item.');
+  const labels = String(d.get('prizeLabels') || '').trim() ? String(d.get('prizeLabels')).split(',').map((s) => s.trim()) : undefined;
+  if (labels && labels.length !== count) throw new Error('Provide one label for each prize, or leave labels empty.');
+  const modes = String(d.get('zoneModes') || '').trim() ? String(d.get('zoneModes')).split(',').map((s)=>s.trim()) : undefined;
+  if (modes && (modes.length !== count || modes.some((m)=>m !== 'instant' && m !== 'multiplier'))) throw new Error('Provide instant or multiplier for each zone.');
+  const mode = d.get('prizeMode') as MiniConfig['mode'];
+  const targetRange = d.get('type') === 'targets' ? { min: Number(d.get('rangeMin')), max: Number(d.get('rangeMax')) } : undefined;
+  if (targetRange && (!Number.isInteger(targetRange.min) || !Number.isInteger(targetRange.max) || targetRange.min < 0 || targetRange.max < targetRange.min)) throw new Error('Provide a valid whole-number reward range.');
+  return { mode, ...(targetRange ? {targetRange, durationSeconds:Number(d.get('durationSeconds'))} : {}), ...(mode === 'multiplier' || modes?.includes('multiplier') ? { baseAmount: Number(d.get('baseAmount')) } : {}), prizes: values.map((amount,i) => ({ amount, ...(modes ? {mode: modes[i] as MiniConfig['mode']} : {}), ...(labels ? { label: labels[i] } : {}) })) };
+}
+function RewardFields({ type = 'credits', value = 10, config }: { type?: string; value?: number; config?: MiniConfig }) {
+  const [selectedType, setType] = useState(type);
+  const [mode, setMode] = useState(config?.mode || 'instant');
+  const mini = ['wheel', 'chests', 'targets', 'scratch'].includes(selectedType);
+  const amounts = config?.prizes.map((p) => p.amount) || (selectedType === 'wheel' ? [5,10,15,25,50,100,10,20] : [5,10,20,30,50,100]);
+  return <>
+    <div className="form-row"><Field label="Reward experience"><select name="type" value={selectedType} onChange={(e) => setType(e.target.value)}>{Object.entries(rewardNames).map(([value,title]) => <option key={value} value={value}>{title}</option>)}</select></Field>
+    {mini ? <><input type="hidden" name="value" value="1"/><Field label="Prize mode"><select name="prizeMode" value={mode} onChange={(e) => setMode(e.target.value as MiniConfig['mode'])}><option value="instant">Instant credits</option><option value="multiplier">Multipliers of a base amount</option></select></Field></> : <Field label="Credits / configured prize value"><input name="value" type="number" min="1" max="1000000" defaultValue={value} required/></Field>}</div>
+    {mini && <div key={selectedType} className="mini-config-fields"><div className="form-row"><Field label={({wheel:'Sector count',chests:'Chest count',targets:'Live birds (minimum 3)',scratch:'Zone count'}[selectedType] || 'Count')}><input name="prizeCount" type="number" min={selectedType === 'targets' ? 3 : 2} max={selectedType === 'wheel' ? 16 : 12} defaultValue={amounts.length} required/></Field>{(mode === 'multiplier' || selectedType === 'scratch') && <Field label="Base amount (credits)"><input name="baseAmount" type="number" min="1" max="10000" defaultValue={config?.baseAmount || 10} required/></Field>}</div>{selectedType === 'targets' && <div className="form-row"><Field label="Round duration (seconds)"><input name="durationSeconds" type="number" min="5" max="120" defaultValue={config?.durationSeconds ?? 30} required/></Field><Field label="Minimum reward"><input name="rangeMin" type="number" min="0" max="1000000" defaultValue={config?.targetRange?.min ?? 1} required/></Field><Field label="Maximum reward"><input name="rangeMax" type="number" min="0" max="1000000" defaultValue={config?.targetRange?.max ?? 10} required/></Field></div>}{selectedType !== 'targets' && <Field label={mode === 'multiplier' ? 'Multipliers (one per sector/item)' : 'Credit amounts (one per sector/item)'}><input name="prizes" defaultValue={amounts.join(', ')} required/></Field>}{selectedType === 'scratch' && <Field label="Zone modes (optional: instant, multiplier, ...)"><input name="zoneModes" defaultValue={config?.prizes.some((p)=>p.mode) ? config.prizes.map((p)=>p.mode ?? config.mode).join(', ') : ''} placeholder="Leave empty to use the prize mode for all zones"/></Field>}<Field label="Prize labels (optional, comma separated)"><input name="prizeLabels" defaultValue={config?.prizes.map((p) => p.label || '').join(', ')} placeholder="Small prize, Big prize, ..."/></Field><p className="help">One round per award. Hit as many birds as possible before time expires. Each hit draws from the reward range; instant amounts or multipliers add together. Fallen birds are replaced, keeping at least three live targets. Other games use the listed amounts with equal odds. Only the chosen item pays. Award settings are saved when granted.</p></div>}
+  </>;
 }
 function AudienceFields({ audience = emptyAudience }: { audience?: Audience }) {
   return (
@@ -512,6 +506,7 @@ function App() {
                       ["Total stakes", analytics?.totalBet],
                       ["Spin payouts", analytics?.totalPayout],
                       ["Award credits", analytics?.awards.creditValue],
+                    ["Mini-game payouts", analytics?.awards.miniGamePayout],
                       ["Current player balances", analytics?.totalBalance],
                     ].map(([label, value]) => (
                       <div key={String(label)}>
@@ -527,7 +522,7 @@ function App() {
                 <section className="panel">
                   <h2>Award delivery</h2>
                   <div className="ledger">
-                    {(["pending", "credited", "revoked"] as const).map((s) => (
+                    {(["pending", "credited", "played", "revoked"] as const).map((s) => (
                       <div key={s}>
                         <Badge value={s} />
                         <strong>
@@ -537,8 +532,8 @@ function App() {
                     ))}
                   </div>
                   <p className="chart-note">
-                    Credits are delivered immediately. Mini-game awards remain
-                    pending until those games are implemented.
+                    Credits are delivered immediately. Mini-game awards are
+                    redeemed once in the game; all four mini-games are available now.
                   </p>
                 </section>
               </div>
@@ -588,6 +583,7 @@ function App() {
                             status: d.get("status"),
                             rewardType: d.get("type"),
                             rewardValue: Number(d.get("value")),
+                            gameConfig: gameConfigFrom(d),
                             audience: audienceFrom(d),
                           },
                         );
@@ -630,6 +626,7 @@ function App() {
                       <RewardFields
                         type={editCampaign?.rewardType}
                         value={editCampaign?.rewardValue}
+                        config={editCampaign?.gameConfig}
                       />
                       <h3>Player eligibility</h3>
                       <AudienceFields
@@ -665,7 +662,7 @@ function App() {
                     <div className="campaign-reward">
                       <span>{rewardNames[c.rewardType]}</span>
                       <strong>
-                        {c.rewardValue}{" "}
+                        {c.gameConfig ? `${c.gameConfig.prizes.length} prizes` : c.rewardValue}{" "}
                         <small>
                           {c.rewardType === "credits"
                             ? "credits"
@@ -986,6 +983,7 @@ function App() {
                           playerId: d.get("playerId"),
                           type: d.get("type"),
                           value: Number(d.get("value")),
+                          gameConfig: gameConfigFrom(d),
                           requestId: crypto.randomUUID(),
                         }),
                       "Award granted. Credit rewards are already in the player balance.",
@@ -996,9 +994,7 @@ function App() {
                     <PlayerSelect />
                     <RewardFields />
                     <p className="help">
-                      Credits apply immediately. Mini-games are recorded as
-                      pending awards; redemption comes with their
-                      implementation.
+                      Credits apply immediately. Mini-game awards push to connected players and open after any active spin.
                     </p>
                     <button className="button primary" type="submit">
                       <Gift size={15} />
@@ -1030,7 +1026,7 @@ function App() {
                         <tr key={a._id}>
                           <td>{playerName(a.playerId)}</td>
                           <td>{rewardNames[a.type]}</td>
-                          <td>{a.value}</td>
+                          <td>{a.outcome ? `${a.outcome.payout} cr paid` : a.gameConfig ? `${a.gameConfig.prizes.length} prizes` : a.value}</td>
                           <td>
                             {campaigns.find((c) => c._id === a.campaignId)
                               ?.name || "Manual grant"}

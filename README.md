@@ -35,4 +35,18 @@ Player game links put demo credentials in the URL fragment, which games-web cons
 5. Create an active credits campaign with tag `simulated`, then Issue.
 6. Inspect the awards ledger and Analytics. Use Refresh after activity in the game or another tab.
 
-Only 500 latest records are displayed per collection in this UI; API pagination is documented in core-api. Mini-game award redemption and scheduled campaigns are not implemented yet. The administrative API is a local, unauthenticated development interface; no production operator login is implied.
+Only 500 latest records are displayed per collection in this UI; API pagination is documented in core-api. Scheduled campaigns are not implemented yet. The administrative API is a local, unauthenticated development interface; no production operator login is implied.
+
+## Wheel and chest campaigns
+
+Choose Lucky wheel or Lucky chests in Campaigns or Awards. Configure the sector/chest count, instant credit prizes or multipliers, comma-separated amounts, and optional labels. Multiplier prizes require a base amount. Count must match the amount list; each entry has equal odds.
+
+Issue an active campaign to its matched players, or grant a manual award. Connected slots receive the pending bonus over WebSocket and open it after the current spin. Offline players receive it on reconnect. Playing credits the prize once and changes the ledger status to `played`; Refresh displays the result and updated analytics. Targets and scratch are also playable through the same award flow.
+
+## Birds and scratch cards
+
+Select moving targets to configure live bird count (at least three), round duration (5–120 seconds; default 30), minimum and maximum reward, instant credits or multipliers, and a required multiplier base. Every integer in the inclusive range has equal probability; players can hit many targets before the countdown ends. Every hit replaces a bird and adds its reward. The server pays the summed credits, or the summed multipliers × base amount, once at expiry. Reconnecting does not restart the timer.
+
+Select scratch to configure zone count and the amount list. The optional Zone modes list accepts `instant` or `multiplier` per entry, allowing mixed cards; otherwise all zones inherit Prize mode. Base amount applies to multiplier zones only. Only the scratched zone pays; the game reveals the rest in gray.
+
+Both campaign and manual grants snapshot these settings and push to matching connected players. Played outcomes and total mini-game payouts appear in Awards and Analytics.
