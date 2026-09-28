@@ -9,7 +9,11 @@
     "preview": "vite preview --host 127.0.0.1",
     "heroku-postbuild": "node scripts/heroku-build.mjs",
     "start": "node server.mjs",
-    "test:server": "node scripts/verify-server.mjs"
+    "test:server": "node scripts/verify-server.mjs",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix --max-warnings 0",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check"
   },
   "dependencies": {
     "express": "^5.2.1",
@@ -18,9 +22,16 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "^7.0.2",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.9",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.0",
     "vite": "^7.0.0"
   },
   "engines": {

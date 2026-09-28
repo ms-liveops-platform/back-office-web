@@ -927,10 +927,31 @@ footer span {
   }
 }
 
-.badge.played { background: #eaf5e7; color: #518151; }
-.mini-config-fields { padding: 18px; border: 1px solid #e2e9e3; border-radius: 8px; margin-bottom: 18px; background: #fafcf9; }
+.badge.played {
+  background: #eaf5e7;
+  color: #518151;
+}
+.mini-config-fields {
+  padding: 18px;
+  border: 1px solid #e2e9e3;
+  border-radius: 8px;
+  margin-bottom: 18px;
+  background: #fafcf9;
+}
 
-.created-player { margin-top: 20px; padding: 18px; border: 1px solid #75bda355; border-radius: 12px; background: #75bda30b; }
-.created-player h3 { margin: 0 0 8px; }
-.created-player code { overflow-wrap: anywhere; }
-.created-player .button { margin-top: 8px; }
+.created-player {
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px solid #75bda355;
+  border-radius: 12px;
+  background: #75bda30b;
+}
+.created-player h3 {
+  margin: 0 0 8px;
+}
+.created-player code {
+  overflow-wrap: anywhere;
+}
+.created-player .button {
+  margin-top: 8px;
+}

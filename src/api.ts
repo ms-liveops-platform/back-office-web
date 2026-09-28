@@ -1,4 +1,10 @@
-export interface MiniConfig { durationSeconds?: number; mode: "instant" | "multiplier"; baseAmount?: number; targetRange?: { min: number; max: number }; prizes: { mode?: 'instant' | 'multiplier'; amount: number; label?: string }[] }
+export interface MiniConfig {
+  durationSeconds?: number;
+  mode: "instant" | "multiplier";
+  baseAmount?: number;
+  targetRange?: { min: number; max: number };
+  prizes: { mode?: "instant" | "multiplier"; amount: number; label?: string }[];
+}
 export interface Player {
   _id: string;
   displayName: string;

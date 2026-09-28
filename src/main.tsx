@@ -111,29 +111,242 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 function gameConfigFrom(d: FormData): MiniConfig | undefined {
-  if (!['wheel', 'chests', 'targets', 'scratch'].includes(String(d.get('type')))) return undefined;
-  const count = Number(d.get('prizeCount'));
-  const values = d.get('type') === 'targets' ? Array.from({length: Math.max(0,Math.min(12,count))},()=>0) : String(d.get('prizes') || '').split(',').map((s) => s.trim() === '' ? NaN : Number(s));
-  if (values.length !== count || values.some((n) => !Number.isInteger(n) || n < 0)) throw new Error('Provide one whole-number prize amount for every sector/item.');
-  const labels = String(d.get('prizeLabels') || '').trim() ? String(d.get('prizeLabels')).split(',').map((s) => s.trim()) : undefined;
-  if (labels && labels.length !== count) throw new Error('Provide one label for each prize, or leave labels empty.');
-  const modes = String(d.get('zoneModes') || '').trim() ? String(d.get('zoneModes')).split(',').map((s)=>s.trim()) : undefined;
-  if (modes && (modes.length !== count || modes.some((m)=>m !== 'instant' && m !== 'multiplier'))) throw new Error('Provide instant or multiplier for each zone.');
-  const mode = d.get('prizeMode') as MiniConfig['mode'];
-  const targetRange = d.get('type') === 'targets' ? { min: Number(d.get('rangeMin')), max: Number(d.get('rangeMax')) } : undefined;
-  if (targetRange && (!Number.isInteger(targetRange.min) || !Number.isInteger(targetRange.max) || targetRange.min < 0 || targetRange.max < targetRange.min)) throw new Error('Provide a valid whole-number reward range.');
-  return { mode, ...(targetRange ? {targetRange, durationSeconds:Number(d.get('durationSeconds'))} : {}), ...(mode === 'multiplier' || modes?.includes('multiplier') ? { baseAmount: Number(d.get('baseAmount')) } : {}), prizes: values.map((amount,i) => ({ amount, ...(modes ? {mode: modes[i] as MiniConfig['mode']} : {}), ...(labels ? { label: labels[i] } : {}) })) };
+  if (
+    !["wheel", "chests", "targets", "scratch"].includes(String(d.get("type")))
+  )
+    return undefined;
+  const count = Number(d.get("prizeCount"));
+  const values =
+    d.get("type") === "targets"
+      ? Array.from({ length: Math.max(0, Math.min(12, count)) }, () => 0)
+      : String(d.get("prizes") || "")
+          .split(",")
+          .map((s) => (s.trim() === "" ? NaN : Number(s)));
+  if (
+    values.length !== count ||
+    values.some((n) => !Number.isInteger(n) || n < 0)
+  )
+    throw new Error(
+      "Provide one whole-number prize amount for every sector/item.",
+    );
+  const labels = String(d.get("prizeLabels") || "").trim()
+    ? String(d.get("prizeLabels"))
+        .split(",")
+        .map((s) => s.trim())
+    : undefined;
+  if (labels && labels.length !== count)
+    throw new Error("Provide one label for each prize, or leave labels empty.");
+  const modes = String(d.get("zoneModes") || "").trim()
+    ? String(d.get("zoneModes"))
+        .split(",")
+        .map((s) => s.trim())
+    : undefined;
+  if (
+    modes &&
+    (modes.length !== count ||
+      modes.some((m) => m !== "instant" && m !== "multiplier"))
+  )
+    throw new Error("Provide instant or multiplier for each zone.");
+  const mode = d.get("prizeMode") as MiniConfig["mode"];
+  const targetRange =
+    d.get("type") === "targets"
+      ? { min: Number(d.get("rangeMin")), max: Number(d.get("rangeMax")) }
+      : undefined;
+  if (
+    targetRange &&
+    (!Number.isInteger(targetRange.min) ||
+      !Number.isInteger(targetRange.max) ||
+      targetRange.min < 0 ||
+      targetRange.max < targetRange.min)
+  )
+    throw new Error("Provide a valid whole-number reward range.");
+  return {
+    mode,
+    ...(targetRange
+      ? { targetRange, durationSeconds: Number(d.get("durationSeconds")) }
+      : {}),
+    ...(mode === "multiplier" || modes?.includes("multiplier")
+      ? { baseAmount: Number(d.get("baseAmount")) }
+      : {}),
+    prizes: values.map((amount, i) => ({
+      amount,
+      ...(modes ? { mode: modes[i] as MiniConfig["mode"] } : {}),
+      ...(labels ? { label: labels[i] } : {}),
+    })),
+  };
 }
-function RewardFields({ type = 'credits', value = 10, config }: { type?: string; value?: number; config?: MiniConfig }) {
+function RewardFields({
+  type = "credits",
+  value = 10,
+  config,
+}: {
+  type?: string;
+  value?: number;
+  config?: MiniConfig;
+}) {
   const [selectedType, setType] = useState(type);
-  const [mode, setMode] = useState(config?.mode || 'instant');
-  const mini = ['wheel', 'chests', 'targets', 'scratch'].includes(selectedType);
-  const amounts = config?.prizes.map((p) => p.amount) || (selectedType === 'wheel' ? [5,10,15,25,50,100,10,20] : [5,10,20,30,50,100]);
-  return <>
-    <div className="form-row"><Field label="Reward experience"><select name="type" value={selectedType} onChange={(e) => setType(e.target.value)}>{Object.entries(rewardNames).map(([value,title]) => <option key={value} value={value}>{title}</option>)}</select></Field>
-    {mini ? <><input type="hidden" name="value" value="1"/><Field label="Prize mode"><select name="prizeMode" value={mode} onChange={(e) => setMode(e.target.value as MiniConfig['mode'])}><option value="instant">Instant credits</option><option value="multiplier">Multipliers of a base amount</option></select></Field></> : <Field label="Credits / configured prize value"><input name="value" type="number" min="1" max="1000000" defaultValue={value} required/></Field>}</div>
-    {mini && <div key={selectedType} className="mini-config-fields"><div className="form-row"><Field label={({wheel:'Sector count',chests:'Chest count',targets:'Live birds (minimum 3)',scratch:'Zone count'}[selectedType] || 'Count')}><input name="prizeCount" type="number" min={selectedType === 'targets' ? 3 : 2} max={selectedType === 'wheel' ? 16 : 12} defaultValue={amounts.length} required/></Field>{(mode === 'multiplier' || selectedType === 'scratch') && <Field label="Base amount (credits)"><input name="baseAmount" type="number" min="1" max="10000" defaultValue={config?.baseAmount || 10} required/></Field>}</div>{selectedType === 'targets' && <div className="form-row"><Field label="Round duration (seconds)"><input name="durationSeconds" type="number" min="5" max="120" defaultValue={config?.durationSeconds ?? 30} required/></Field><Field label="Minimum reward"><input name="rangeMin" type="number" min="0" max="1000000" defaultValue={config?.targetRange?.min ?? 1} required/></Field><Field label="Maximum reward"><input name="rangeMax" type="number" min="0" max="1000000" defaultValue={config?.targetRange?.max ?? 10} required/></Field></div>}{selectedType !== 'targets' && <Field label={mode === 'multiplier' ? 'Multipliers (one per sector/item)' : 'Credit amounts (one per sector/item)'}><input name="prizes" defaultValue={amounts.join(', ')} required/></Field>}{selectedType === 'scratch' && <Field label="Zone modes (optional: instant, multiplier, ...)"><input name="zoneModes" defaultValue={config?.prizes.some((p)=>p.mode) ? config.prizes.map((p)=>p.mode ?? config.mode).join(', ') : ''} placeholder="Leave empty to use the prize mode for all zones"/></Field>}<Field label="Prize labels (optional, comma separated)"><input name="prizeLabels" defaultValue={config?.prizes.map((p) => p.label || '').join(', ')} placeholder="Small prize, Big prize, ..."/></Field><p className="help">One round per award. Hit as many birds as possible before time expires. Each hit draws from the reward range; instant amounts or multipliers add together. Fallen birds are replaced, keeping at least three live targets. Other games use the listed amounts with equal odds. Only the chosen item pays. Award settings are saved when granted.</p></div>}
-  </>;
+  const [mode, setMode] = useState(config?.mode || "instant");
+  const mini = ["wheel", "chests", "targets", "scratch"].includes(selectedType);
+  const amounts =
+    config?.prizes.map((p) => p.amount) ||
+    (selectedType === "wheel"
+      ? [5, 10, 15, 25, 50, 100, 10, 20]
+      : [5, 10, 20, 30, 50, 100]);
+  return (
+    <>
+      <div className="form-row">
+        <Field label="Reward experience">
+          <select
+            name="type"
+            value={selectedType}
+            onChange={(e) => setType(e.target.value)}
+          >
+            {Object.entries(rewardNames).map(([value, title]) => (
+              <option key={value} value={value}>
+                {title}
+              </option>
+            ))}
+          </select>
+        </Field>
+        {mini ? (
+          <>
+            <input type="hidden" name="value" value="1" />
+            <Field label="Prize mode">
+              <select
+                name="prizeMode"
+                value={mode}
+                onChange={(e) => setMode(e.target.value as MiniConfig["mode"])}
+              >
+                <option value="instant">Instant credits</option>
+                <option value="multiplier">Multipliers of a base amount</option>
+              </select>
+            </Field>
+          </>
+        ) : (
+          <Field label="Credits / configured prize value">
+            <input
+              name="value"
+              type="number"
+              min="1"
+              max="1000000"
+              defaultValue={value}
+              required
+            />
+          </Field>
+        )}
+      </div>
+      {mini && (
+        <div key={selectedType} className="mini-config-fields">
+          <div className="form-row">
+            <Field
+              label={
+                {
+                  wheel: "Sector count",
+                  chests: "Chest count",
+                  targets: "Live birds (minimum 3)",
+                  scratch: "Zone count",
+                }[selectedType] || "Count"
+              }
+            >
+              <input
+                name="prizeCount"
+                type="number"
+                min={selectedType === "targets" ? 3 : 2}
+                max={selectedType === "wheel" ? 16 : 12}
+                defaultValue={amounts.length}
+                required
+              />
+            </Field>
+            {(mode === "multiplier" || selectedType === "scratch") && (
+              <Field label="Base amount (credits)">
+                <input
+                  name="baseAmount"
+                  type="number"
+                  min="1"
+                  max="10000"
+                  defaultValue={config?.baseAmount || 10}
+                  required
+                />
+              </Field>
+            )}
+          </div>
+          {selectedType === "targets" && (
+            <div className="form-row">
+              <Field label="Round duration (seconds)">
+                <input
+                  name="durationSeconds"
+                  type="number"
+                  min="5"
+                  max="120"
+                  defaultValue={config?.durationSeconds ?? 30}
+                  required
+                />
+              </Field>
+              <Field label="Minimum reward">
+                <input
+                  name="rangeMin"
+                  type="number"
+                  min="0"
+                  max="1000000"
+                  defaultValue={config?.targetRange?.min ?? 1}
+                  required
+                />
+              </Field>
+              <Field label="Maximum reward">
+                <input
+                  name="rangeMax"
+                  type="number"
+                  min="0"
+                  max="1000000"
+                  defaultValue={config?.targetRange?.max ?? 10}
+                  required
+                />
+              </Field>
+            </div>
+          )}
+          {selectedType !== "targets" && (
+            <Field
+              label={
+                mode === "multiplier"
+                  ? "Multipliers (one per sector/item)"
+                  : "Credit amounts (one per sector/item)"
+              }
+            >
+              <input name="prizes" defaultValue={amounts.join(", ")} required />
+            </Field>
+          )}
+          {selectedType === "scratch" && (
+            <Field label="Zone modes (optional: instant, multiplier, ...)">
+              <input
+                name="zoneModes"
+                defaultValue={
+                  config?.prizes.some((p) => p.mode)
+                    ? config.prizes.map((p) => p.mode ?? config.mode).join(", ")
+                    : ""
+                }
+                placeholder="Leave empty to use the prize mode for all zones"
+              />
+            </Field>
+          )}
+          <Field label="Prize labels (optional, comma separated)">
+            <input
+              name="prizeLabels"
+              defaultValue={config?.prizes.map((p) => p.label || "").join(", ")}
+              placeholder="Small prize, Big prize, ..."
+            />
+          </Field>
+          <p className="help">
+            One round per award. Hit as many birds as possible before time
+            expires. Each hit draws from the reward range; instant amounts or
+            multipliers add together. Fallen birds are replaced, keeping at
+            least three live targets. Other games use the listed amounts with
+            equal odds. Only the chosen item pays. Award settings are saved when
+            granted.
+          </p>
+        </div>
+      )}
+    </>
+  );
 }
 function AudienceFields({ audience = emptyAudience }: { audience?: Audience }) {
   return (
@@ -205,7 +418,9 @@ function App() {
     null,
   );
   const [editCampaign, setEditCampaign] = useState<Campaign | null>(null);
-  const [pendingIssues, setPendingIssues] = useState<Record<string,string>>({});
+  const [pendingIssues, setPendingIssues] = useState<Record<string, string>>(
+    {},
+  );
   const [showCampaign, setShowCampaign] = useState(false);
   const [editPlayer, setEditPlayer] = useState<Player | null>(null);
   const [createdPlayer, setCreatedPlayer] = useState<Player | null>(null);
@@ -347,20 +562,29 @@ function App() {
               <p>{descriptions[tab]}</p>
             </div>
             <div className="card-actions">
-              {tab === "targeting" && <button className="button primary" disabled={busy} onClick={() => {
-                setTab("targeting");
-                setEditPlayer(null);
-                setCreatedPlayer(null);
-                setPlayerFormVersion((v) => v + 1);
-              }}><Plus size={15} />New player</button>}
-            <button
-              className="button secondary"
-              onClick={() => void refresh()}
-              disabled={loading || busy}
-            >
-              <RefreshCw size={15} className={loading ? "rotate" : ""} />
-              Refresh
-            </button>
+              {tab === "targeting" && (
+                <button
+                  className="button primary"
+                  disabled={busy}
+                  onClick={() => {
+                    setTab("targeting");
+                    setEditPlayer(null);
+                    setCreatedPlayer(null);
+                    setPlayerFormVersion((v) => v + 1);
+                  }}
+                >
+                  <Plus size={15} />
+                  New player
+                </button>
+              )}
+              <button
+                className="button secondary"
+                onClick={() => void refresh()}
+                disabled={loading || busy}
+              >
+                <RefreshCw size={15} className={loading ? "rotate" : ""} />
+                Refresh
+              </button>
             </div>
           </div>
           {notice && (
@@ -522,7 +746,7 @@ function App() {
                       ["Total stakes", analytics?.totalBet],
                       ["Spin payouts", analytics?.totalPayout],
                       ["Award credits", analytics?.awards.creditValue],
-                    ["Mini-game payouts", analytics?.awards.miniGamePayout],
+                      ["Mini-game payouts", analytics?.awards.miniGamePayout],
                       ["Current player balances", analytics?.totalBalance],
                     ].map(([label, value]) => (
                       <div key={String(label)}>
@@ -538,7 +762,9 @@ function App() {
                 <section className="panel">
                   <h2>Award delivery</h2>
                   <div className="ledger">
-                    {(["pending", "credited", "played", "revoked"] as const).map((s) => (
+                    {(
+                      ["pending", "credited", "played", "revoked"] as const
+                    ).map((s) => (
                       <div key={s}>
                         <Badge value={s} />
                         <strong>
@@ -549,7 +775,8 @@ function App() {
                   </div>
                   <p className="chart-note">
                     Credits are delivered immediately. Mini-game awards are
-                    redeemed once in the game; all four mini-games are available now.
+                    redeemed once in the game; all four mini-games are available
+                    now.
                   </p>
                 </section>
               </div>
@@ -678,7 +905,9 @@ function App() {
                     <div className="campaign-reward">
                       <span>{rewardNames[c.rewardType]}</span>
                       <strong>
-                        {c.gameConfig ? `${c.gameConfig.prizes.length} prizes` : c.rewardValue}{" "}
+                        {c.gameConfig
+                          ? `${c.gameConfig.prizes.length} prizes`
+                          : c.rewardValue}{" "}
                         <small>
                           {c.rewardType === "credits"
                             ? "credits"
@@ -686,7 +915,10 @@ function App() {
                         </small>
                       </strong>
                     </div>
-                    <p className="help">Each Issue starts a new run using current player balances and targeting data.</p>
+                    <p className="help">
+                      Each Issue starts a new run using current player balances
+                      and targeting data.
+                    </p>
                     <p className="help">
                       {c.audience.playerIds.length
                         ? `${c.audience.playerIds.length} selected players`
@@ -712,13 +944,23 @@ function App() {
                         disabled={blocked || c.status !== "active"}
                         onClick={() =>
                           void mutate(async () => {
-                            const issuanceId = pendingIssues[c._id] ?? crypto.randomUUID();
-                            setPendingIssues((current) => ({...current,[c._id]:issuanceId}));
+                            const issuanceId =
+                              pendingIssues[c._id] ?? crypto.randomUUID();
+                            setPendingIssues((current) => ({
+                              ...current,
+                              [c._id]: issuanceId,
+                            }));
                             const r = await api<{
                               granted: number;
                               eligible: number;
-                            }>(`/campaigns/${c._id}/issue`, "POST", {issuanceId});
-                            setPendingIssues((current) => {const next = {...current}; delete next[c._id]; return next;});
+                            }>(`/campaigns/${c._id}/issue`, "POST", {
+                              issuanceId,
+                            });
+                            setPendingIssues((current) => {
+                              const next = { ...current };
+                              delete next[c._id];
+                              return next;
+                            });
                             return `${r.granted} awards issued to ${r.eligible} players matching this run. The next Issue will check current player data again.`;
                           }, "Campaign issuance complete. Refresh awards for results.")
                         }
@@ -756,18 +998,41 @@ function App() {
               <div className="two-column">
                 <section className="panel">
                   <h2>{editPlayer ? "Edit player" : "Create a player"}</h2>
-                  {!editPlayer && <p className="help">Create a player to try the slot and award campaigns. Player ID and game credentials are generated automatically.</p>}
+                  {!editPlayer && (
+                    <p className="help">
+                      Create a player to try the slot and award campaigns.
+                      Player ID and game credentials are generated
+                      automatically.
+                    </p>
+                  )}
                   <form
                     key={editPlayer?._id || `new-player-${playerFormVersion}`}
                     onSubmit={(e) => {
                       const d = formData(e);
                       void mutate(async () => {
-                        const displayName = String(d.get("displayName") || "").trim();
+                        const displayName = String(
+                          d.get("displayName") || "",
+                        ).trim();
                         const tags = [...new Set(list(d.get("tags")))];
                         const balance = Number(d.get("balance"));
-                        if (!displayName) throw new Error("Enter a display name.");
-                        if (tags.length > 10 || tags.some((tag) => tag.length > 30)) throw new Error("Use up to 10 tags, with at most 30 characters each.");
-                        if (!editPlayer && (!Number.isInteger(balance) || balance < 0 || balance > 1000000)) throw new Error("Starting credits must be a whole number from 0 to 1,000,000.");
+                        if (!displayName)
+                          throw new Error("Enter a display name.");
+                        if (
+                          tags.length > 10 ||
+                          tags.some((tag) => tag.length > 30)
+                        )
+                          throw new Error(
+                            "Use up to 10 tags, with at most 30 characters each.",
+                          );
+                        if (
+                          !editPlayer &&
+                          (!Number.isInteger(balance) ||
+                            balance < 0 ||
+                            balance > 1000000)
+                        )
+                          throw new Error(
+                            "Starting credits must be a whole number from 0 to 1,000,000.",
+                          );
                         const savedPlayer = await api<Player>(
                           editPlayer
                             ? `/players/${editPlayer._id}`
@@ -786,7 +1051,9 @@ function App() {
                           setPlayerFormVersion((v) => v + 1);
                         }
                         setEditPlayer(null);
-                        return editPlayer ? "Player updated." : `${savedPlayer.displayName} created successfully.`;
+                        return editPlayer
+                          ? "Player updated."
+                          : `${savedPlayer.displayName} created successfully.`;
                       }, "Player saved.");
                     }}
                   >
@@ -836,7 +1103,11 @@ function App() {
                       </div>
                       <div className="card-actions">
                         <button className="button primary" type="submit">
-                          {busy ? "Saving…" : editPlayer ? "Save changes" : "Create player"}
+                          {busy
+                            ? "Saving…"
+                            : editPlayer
+                              ? "Save changes"
+                              : "Create player"}
                         </button>
                         {editPlayer && (
                           <button
@@ -850,12 +1121,24 @@ function App() {
                       </div>
                     </fieldset>
                   </form>
-                  {createdPlayer && !editPlayer && <div className="created-player" role="status">
-                    <h3>{createdPlayer.displayName} is ready</h3>
-                    <p>{number(createdPlayer.balance)} starting credits</p>
-                    <p className="help">Player ID: <code>{createdPlayer._id}</code></p>
-                    <a className="button primary" href={gameUrl(createdPlayer)} target="_blank" rel="noreferrer"><Play size={15} />Open slot as this player</a>
-                  </div>}
+                  {createdPlayer && !editPlayer && (
+                    <div className="created-player" role="status">
+                      <h3>{createdPlayer.displayName} is ready</h3>
+                      <p>{number(createdPlayer.balance)} starting credits</p>
+                      <p className="help">
+                        Player ID: <code>{createdPlayer._id}</code>
+                      </p>
+                      <a
+                        className="button primary"
+                        href={gameUrl(createdPlayer)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <Play size={15} />
+                        Open slot as this player
+                      </a>
+                    </div>
+                  )}
                 </section>
                 <section className="panel">
                   <h2>Audience preview</h2>
@@ -1035,7 +1318,8 @@ function App() {
                     <PlayerSelect />
                     <RewardFields />
                     <p className="help">
-                      Credits apply immediately. Mini-game awards push to connected players and open after any active spin.
+                      Credits apply immediately. Mini-game awards push to
+                      connected players and open after any active spin.
                     </p>
                     <button className="button primary" type="submit">
                       <Gift size={15} />
@@ -1067,7 +1351,13 @@ function App() {
                         <tr key={a._id}>
                           <td>{playerName(a.playerId)}</td>
                           <td>{rewardNames[a.type]}</td>
-                          <td>{a.outcome ? `${a.outcome.payout} cr paid` : a.gameConfig ? `${a.gameConfig.prizes.length} prizes` : a.value}</td>
+                          <td>
+                            {a.outcome
+                              ? `${a.outcome.payout} cr paid`
+                              : a.gameConfig
+                                ? `${a.gameConfig.prizes.length} prizes`
+                                : a.value}
+                          </td>
                           <td>
                             {campaigns.find((c) => c._id === a.campaignId)
                               ?.name || "Manual grant"}
