@@ -19,7 +19,7 @@ Optional `.env` settings are documented in `.env.example`: `VITE_API_URL` defaul
 ## Sections
 
 - **Analytics:** persisted player/spin totals, mock deposits, daily active players, D1/D7 retention, credit movement, and award delivery. Seeded cohorts are reported separately. No fake fallback metrics.
-- **Campaigns:** create/edit/archive campaigns, choose reward experience/value and targeting, then issue manually. Each player receives a campaign at most once.
+- **Campaigns:** create/edit/archive campaigns, choose reward experience/value and targeting, then issue manually. Each Issue rechecks current player data; qualifying players can receive awards in multiple runs.
 - **Player targeting:** create/edit/archive players with display names and tags, preview intersecting audience criteria, select players for a campaign, or launch the game as a player.
 - **Awards:** grant credits immediately or create pending mini-game awards. Pending awards can be revoked. Credited ledger records cannot be erased.
 - **Simulation:** create a labeled historical cohort, make mock deposits, and record return sessions. Open games receive balance changes over WebSocket.
@@ -50,3 +50,15 @@ Select moving targets to configure live bird count (at least three), round durat
 Select scratch to configure zone count and the amount list. The optional Zone modes list accepts `instant` or `multiplier` per entry, allowing mixed cards; otherwise all zones inherit Prize mode. Base amount applies to multiplier zones only. Only the scratched zone pays; the game reveals the rest in gray.
 
 Both campaign and manual grants snapshot these settings and push to matching connected players. Played outcomes and total mini-game payouts appear in Awards and Analytics.
+
+## Create a player
+
+In **Player targeting**, click **New player** in the page header to open the form. Enter a display name, starting mock credits (default 100), and optional comma-separated tags. Submit **Create player** to save through core-api. The form clears after a successful save and shows the generated player ID with **Open slot as this player**, which launches the authenticated player link. MongoDB must be connected to save players.
+
+## Issue a campaign again
+
+Press **Issue** for a new run using current balances, tags, status and deposit totals. Players who no longer match are excluded; players who still match can receive another award. If a request fails, **Retry issue** reuses the same run ID to avoid duplicate awards. After a successful response, the next **Issue** creates a new run. The displayed counts describe that run.
+
+## Heroku deployment
+
+See [HEROKU.md](HEROKU.md) for the app setup and required public build-time URLs. `npm start` serves the built `dist` directory with SPA route fallback and Heroku’s assigned port. Development commands and ports are unchanged.

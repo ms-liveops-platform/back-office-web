@@ -1,6 +1,7 @@
 import type { MiniConfig } from "./api";
 import React, {
   useEffect,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -204,8 +205,15 @@ function App() {
     null,
   );
   const [editCampaign, setEditCampaign] = useState<Campaign | null>(null);
+  const [pendingIssues, setPendingIssues] = useState<Record<string,string>>({});
   const [showCampaign, setShowCampaign] = useState(false);
   const [editPlayer, setEditPlayer] = useState<Player | null>(null);
+  const [createdPlayer, setCreatedPlayer] = useState<Player | null>(null);
+  const [playerFormVersion, setPlayerFormVersion] = useState(0);
+  const playerNameInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (playerFormVersion > 0) playerNameInput.current?.focus();
+  }, [playerFormVersion]);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [preview, setPreview] = useState<{
@@ -338,6 +346,13 @@ function App() {
               <h1>{title}</h1>
               <p>{descriptions[tab]}</p>
             </div>
+            <div className="card-actions">
+              {tab === "targeting" && <button className="button primary" disabled={busy} onClick={() => {
+                setTab("targeting");
+                setEditPlayer(null);
+                setCreatedPlayer(null);
+                setPlayerFormVersion((v) => v + 1);
+              }}><Plus size={15} />New player</button>}
             <button
               className="button secondary"
               onClick={() => void refresh()}
@@ -346,6 +361,7 @@ function App() {
               <RefreshCw size={15} className={loading ? "rotate" : ""} />
               Refresh
             </button>
+            </div>
           </div>
           {notice && (
             <div
@@ -670,6 +686,7 @@ function App() {
                         </small>
                       </strong>
                     </div>
+                    <p className="help">Each Issue starts a new run using current player balances and targeting data.</p>
                     <p className="help">
                       {c.audience.playerIds.length
                         ? `${c.audience.playerIds.length} selected players`
@@ -695,16 +712,19 @@ function App() {
                         disabled={blocked || c.status !== "active"}
                         onClick={() =>
                           void mutate(async () => {
+                            const issuanceId = pendingIssues[c._id] ?? crypto.randomUUID();
+                            setPendingIssues((current) => ({...current,[c._id]:issuanceId}));
                             const r = await api<{
                               granted: number;
-                              skipped: number;
-                            }>(`/campaigns/${c._id}/issue`, "POST");
-                            return `${r.granted} awards issued; ${r.skipped} already issued or no longer eligible.`;
+                              eligible: number;
+                            }>(`/campaigns/${c._id}/issue`, "POST", {issuanceId});
+                            setPendingIssues((current) => {const next = {...current}; delete next[c._id]; return next;});
+                            return `${r.granted} awards issued to ${r.eligible} players matching this run. The next Issue will check current player data again.`;
                           }, "Campaign issuance complete. Refresh awards for results.")
                         }
                       >
                         <Play size={14} />
-                        Issue
+                        {pendingIssues[c._id] ? "Retry issue" : "Issue"}
                       </button>
                       <button
                         className="icon-button"
@@ -736,25 +756,37 @@ function App() {
               <div className="two-column">
                 <section className="panel">
                   <h2>{editPlayer ? "Edit player" : "Create a player"}</h2>
+                  {!editPlayer && <p className="help">Create a player to try the slot and award campaigns. Player ID and game credentials are generated automatically.</p>}
                   <form
-                    key={editPlayer?._id || "new-player"}
+                    key={editPlayer?._id || `new-player-${playerFormVersion}`}
                     onSubmit={(e) => {
                       const d = formData(e);
                       void mutate(async () => {
-                        await api(
+                        const displayName = String(d.get("displayName") || "").trim();
+                        const tags = [...new Set(list(d.get("tags")))];
+                        const balance = Number(d.get("balance"));
+                        if (!displayName) throw new Error("Enter a display name.");
+                        if (tags.length > 10 || tags.some((tag) => tag.length > 30)) throw new Error("Use up to 10 tags, with at most 30 characters each.");
+                        if (!editPlayer && (!Number.isInteger(balance) || balance < 0 || balance > 1000000)) throw new Error("Starting credits must be a whole number from 0 to 1,000,000.");
+                        const savedPlayer = await api<Player>(
                           editPlayer
                             ? `/players/${editPlayer._id}`
                             : "/players",
                           editPlayer ? "PATCH" : "POST",
                           {
-                            displayName: d.get("displayName"),
-                            tags: list(d.get("tags")),
+                            displayName,
+                            tags,
                             ...(editPlayer
                               ? { status: d.get("status") }
-                              : { balance: Number(d.get("balance")) }),
+                              : { balance }),
                           },
                         );
+                        if (!editPlayer) {
+                          setCreatedPlayer(savedPlayer);
+                          setPlayerFormVersion((v) => v + 1);
+                        }
                         setEditPlayer(null);
+                        return editPlayer ? "Player updated." : `${savedPlayer.displayName} created successfully.`;
                       }, "Player saved.");
                     }}
                   >
@@ -762,6 +794,8 @@ function App() {
                       <Field label="Display name">
                         <input
                           name="displayName"
+                          ref={playerNameInput}
+                          autoComplete="off"
                           maxLength={50}
                           defaultValue={editPlayer?.displayName}
                           required
@@ -784,6 +818,7 @@ function App() {
                             <input
                               type="number"
                               name="balance"
+                              step="1"
                               min="0"
                               max="1000000"
                               defaultValue={100}
@@ -791,7 +826,7 @@ function App() {
                             />
                           </Field>
                         )}
-                        <Field label="Tags">
+                        <Field label="Tags (optional, comma separated)">
                           <input
                             name="tags"
                             defaultValue={editPlayer?.tags.join(", ")}
@@ -801,7 +836,7 @@ function App() {
                       </div>
                       <div className="card-actions">
                         <button className="button primary" type="submit">
-                          {editPlayer ? "Save changes" : "Create player"}
+                          {busy ? "Saving…" : editPlayer ? "Save changes" : "Create player"}
                         </button>
                         {editPlayer && (
                           <button
@@ -815,6 +850,12 @@ function App() {
                       </div>
                     </fieldset>
                   </form>
+                  {createdPlayer && !editPlayer && <div className="created-player" role="status">
+                    <h3>{createdPlayer.displayName} is ready</h3>
+                    <p>{number(createdPlayer.balance)} starting credits</p>
+                    <p className="help">Player ID: <code>{createdPlayer._id}</code></p>
+                    <a className="button primary" href={gameUrl(createdPlayer)} target="_blank" rel="noreferrer"><Play size={15} />Open slot as this player</a>
+                  </div>}
                 </section>
                 <section className="panel">
                   <h2>Audience preview</h2>
